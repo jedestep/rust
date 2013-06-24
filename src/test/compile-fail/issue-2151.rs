@@ -11,7 +11,7 @@
 use std::vec;
 
 fn main() {
-    for vec::each(fail!()) |i| {
+    for (fail!()).iter().advance |i| {
         let _ = i * 2; //~ ERROR the type of this value must be known
-   };
+    }; //~ ERROR cannot determine a type for this bounded type parameter: unconstrained type
 }

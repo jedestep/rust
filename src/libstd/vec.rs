@@ -437,7 +437,7 @@ pub fn partitioned<T:Copy>(v: &[T], f: &fn(&T) -> bool) -> (~[T], ~[T]) {
     let mut lefts  = ~[];
     let mut rights = ~[];
 
-    for each(v) |elt| {
+    for v.iter().advance |elt| {
         if f(elt) {
             lefts.push(copy *elt);
         } else {
@@ -843,7 +843,7 @@ pub fn grow_set<T:Copy>(v: &mut ~[T], index: uint, initval: &T, val: T) {
 /// Apply a function to each element of a vector and return the results
 pub fn map<T, U>(v: &[T], f: &fn(t: &T) -> U) -> ~[U] {
     let mut result = with_capacity(v.len());
-    for each(v) |elem| {
+    for v.iter().advance |elem| {
         result.push(f(elem));
     }
     result
@@ -879,7 +879,7 @@ pub fn mapi<T, U>(v: &[T], f: &fn(uint, t: &T) -> U) -> ~[U] {
  */
 pub fn flat_map<T, U>(v: &[T], f: &fn(t: &T) -> ~[U]) -> ~[U] {
     let mut result = ~[];
-    for each(v) |elem| { result.push_all_move(f(elem)); }
+    for v.iter().advance |elem| { result.push_all_move(f(elem)); }
     result
 }
 
@@ -932,7 +932,7 @@ pub fn filter_mapped<T, U: Copy>(
      */
 
     let mut result = ~[];
-    for each(v) |elem| {
+    for v.iter().advance |elem| {
         match f(elem) {
           None => {/* no-op */ }
           Some(result_elem) => { result.push(result_elem); }
@@ -967,7 +967,7 @@ pub fn filter<T>(v: ~[T], f: &fn(t: &T) -> bool) -> ~[T] {
  */
 pub fn filtered<T:Copy>(v: &[T], f: &fn(t: &T) -> bool) -> ~[T] {
     let mut result = ~[];
-    for each(v) |elem| {
+    for v.iter().advance |elem| {
         if f(elem) { result.push(copy *elem); }
     }
     result
@@ -1051,7 +1051,7 @@ impl<'self, T:Copy> VectorVector<T> for &'self [&'self [T]] {
 
 /// Return true if a vector contains an element with the given value
 pub fn contains<T:Eq>(v: &[T], x: &T) -> bool {
-    for each(v) |elt| { if *x == *elt { return true; } }
+    for v.iter().advance |elt| { if *x == *elt { return true; } }
     false
 }
 
@@ -1202,7 +1202,7 @@ pub fn bsearch_elem<T:TotalOrd>(v: &[T], x: &T) -> Option<uint> {
  */
 pub fn unzip_slice<T:Copy,U:Copy>(v: &[(T, U)]) -> (~[T], ~[U]) {
     let mut (ts, us) = (~[], ~[]);
-    for each(v) |p| {
+    for v.iter().advance |p| {
         let (t, u) = copy *p;
         ts.push(t);
         us.push(u);
@@ -1338,69 +1338,6 @@ pub fn reversed<T:Copy>(v: &const [T]) -> ~[T] {
     while i != 0 { rs.push(copy v[i]); i -= 1; }
     rs.push(copy v[0]);
     rs
-}
-
-/**
- * Iterates over a vector, yielding each element to a closure.
- *
- * # Arguments
- *
- * * `v` - A vector, to be iterated over
- * * `f` - A closure to do the iterating. Within this closure, return true to
- * * continue iterating, false to break.
- *
- * # Examples
- *
- * ~~~ {.rust}
- * [1,2,3].each(|&i| {
- *     io::println(int::str(i));
- *     true
- * });
- * ~~~
- *
- * ~~~ {.rust}
- * [1,2,3,4,5].each(|&i| {
- *     if i < 4 {
- *         io::println(int::str(i));
- *         true
- *     }
- *     else {
- *         false
- *     }
- * });
- * ~~~
- *
- * You probably will want to use each with a `for`/`do` expression, depending
- * on your iteration needs:
- *
- * ~~~ {.rust}
- * for [1,2,3].each |&i| {
- *     io::println(int::str(i));
- * }
- * ~~~
- */
-#[inline]
-pub fn each<'r,T>(v: &'r [T], f: &fn(&'r T) -> bool) -> bool {
-    //            ^^^^
-    // NB---this CANNOT be &const [T]!  The reason
-    // is that you are passing it to `f()` using
-    // an immutable.
-
-    let mut broke = false;
-    do as_imm_buf(v) |p, n| {
-        let mut n = n;
-        let mut p = p;
-        while n > 0u {
-            unsafe {
-                let q = cast::copy_lifetime_vec(v, &*p);
-                if !f(q) { break; }
-                p = ptr::offset(p, 1u);
-            }
-            n -= 1u;
-        }
-        broke = n > 0;
-    }
-    return !broke;
 }
 
 /**
@@ -3064,36 +3001,6 @@ mod tests {
     }
 
     #[test]
-    fn test_each_empty() {
-        for each::<int>([]) |_v| {
-            fail!(); // should never be executed
-        }
-    }
-
-    #[test]
-    fn test_each_nonempty() {
-        let mut i = 0;
-        for each([1, 2, 3]) |v| {
-            i += *v;
-        }
-        assert_eq!(i, 6);
-    }
-
-    #[test]
-    fn test_each_ret_len0() {
-        let a0 : [int, .. 0] = [];
-        assert_eq!(each(a0, |_p| fail!()), true);
-    }
-
-    #[test]
-    fn test_each_ret_len1() {
-        let a1 = [17];
-        assert_eq!(each(a1, |_p| true), true);
-        assert_eq!(each(a1, |_p| false), false);
-    }
-
-
-    #[test]
     fn test_each_permutation() {
         let mut results: ~[~[int]];
 
@@ -3840,21 +3747,6 @@ mod tests {
         let v = [(~0, @0), (~0, @0), (~0, @0), (~0, @0)];
         let mut i = 0;
         do rposition(v) |_elt| {
-            if i == 2 {
-                fail!()
-            }
-            i += 0;
-            false
-        };
-    }
-
-    #[test]
-    #[ignore(windows)]
-    #[should_fail]
-    fn test_each_fail() {
-        let v = [(~0, @0), (~0, @0), (~0, @0), (~0, @0)];
-        let mut i = 0;
-        do each(v) |_elt| {
             if i == 2 {
                 fail!()
             }
